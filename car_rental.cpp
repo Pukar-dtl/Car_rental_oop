@@ -8,8 +8,6 @@
 
 using namespace std;
 
-// ==================== Date Structure and Functions ====================
-
 struct Date {
     int day;
     int month;
@@ -77,8 +75,6 @@ void clearInputBuffer() {
     cin.ignore(numeric_limits<streamsize>::max(), '\n');
 }
 
-// ==================== Car Structure ====================
-
 struct Car {
     int id;
     string company;
@@ -101,8 +97,6 @@ struct Car {
              << setw(12) << (isAvailable ? "Available" : "Rented") << endl;
     }
 };
-
-// ==================== Rental Structure ====================
 
 struct Rental {
     int id;
@@ -133,8 +127,6 @@ struct Rental {
         return daysLate * dailyRate * 1.5; // 50% late fee
     }
 };
-
-// ==================== Car Rental System Class ====================
 
 class CarRentalSystem {
 private:
@@ -199,8 +191,7 @@ public:
         // No sample cars - system starts empty
         // User must add cars through the menu
     }
-    
-    // ========== Feature 1: Add Car ==========
+
     void addCar() {
         displayHeader("ADD NEW CAR");
         
@@ -230,7 +221,6 @@ public:
         cout << "\nCar added successfully with ID: " << (nextCarId - 1) << endl;
     }
     
-    // ========== Feature 2: Show Available Cars ==========
     void showAvailableCars() {
         updateCarAvailability();
         displayHeader("AVAILABLE CARS");
@@ -257,7 +247,6 @@ public:
         }
     }
     
-    // ========== Feature 3: Rent Car ==========
     void rentCar() {
         updateCarAvailability();
         displayHeader("RENT A CAR");
@@ -377,7 +366,6 @@ public:
         }
     }
     
-    // ========== Feature 4: Show Rented Cars ==========
     void showRentedCars() {
         updateCarAvailability();
         displayHeader("CURRENTLY RENTED CARS");
@@ -413,7 +401,6 @@ public:
         }
     }
     
-    // ========== Feature 5: Show Rental History ==========
     void showRentalHistory() {
         updateCarAvailability();
         displayHeader("RENTAL HISTORY");
@@ -441,7 +428,6 @@ public:
         }
     }
     
-    // ========== Feature 6: Return Car ==========
     void returnCar() {
         updateCarAvailability();
         displayHeader("RETURN A CAR");
@@ -545,14 +531,11 @@ public:
         }
     }
     
-    // ========== Feature 7: Exit ==========
     void exitSystem() {
         displayHeader("THANK YOU");
         cout << "Goodbye! Have a great day!" << endl <<"Contributors: Pukar Dhital & Pankaj Dahal"<< endl;
     }
 };
-
-// ==================== Main Function ====================
 
 void displayMainMenu() {
     cout << "\n" << string(50, '=') << endl;
@@ -571,15 +554,11 @@ void displayMainMenu() {
 
 int main() {
     CarRentalSystem system;
-    int choice;
+    int choice = 0;
     
     cout << "\n" << string(60, '*') << endl;
     cout << "      WELCOME TO CAR RENTAL MANAGEMENT SYSTEM" << endl;
     cout << string(60, '*') << endl;
-    
-    // Note: System starts with no cars
-    cout << "\nNote: The system starts with no cars." << endl;
-    cout << "Please add cars using option 1 from the menu." << endl;
     
     do {
         displayMainMenu();
@@ -616,7 +595,13 @@ int main() {
                 system.exitSystem();
                 break;
             default:
-                cout << "Invalid choice! Please enter 1-7." << endl;
+                if(choice == 0){
+                    continue;
+                }else{
+                    cout << "Invalid choice! Please enter 1-7." << endl;
+                }
+
+                
         }
         
     } while (choice != 7);
