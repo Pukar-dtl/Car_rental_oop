@@ -5,8 +5,12 @@
 #include <limits>
 #include <algorithm>
 #include <iomanip>
+#include <fstream>
+#include <sstream>
 
 using namespace std;
+
+// ==================== Date Structure and Functions ====================
 
 struct Date {
     int day;
@@ -62,6 +66,17 @@ struct Date {
     string toString() const {
         return to_string(day) + "/" + to_string(month) + "/" + to_string(year);
     }
+    
+    string toFileString() const {
+        return to_string(day) + " " + to_string(month) + " " + to_string(year);
+    }
+    
+    static Date fromString(const string& str) {
+        istringstream iss(str);
+        int d, m, y;
+        iss >> d >> m >> y;
+        return Date(d, m, y);
+    }
 };
 
 Date getToday() {
@@ -75,12 +90,16 @@ void clearInputBuffer() {
     cin.ignore(numeric_limits<streamsize>::max(), '\n');
 }
 
+// ==================== Car Structure ====================
+
 struct Car {
     int id;
     string company;
     string model;
     int dailyRent;
     bool isAvailable;
+    
+    Car() : id(-1), dailyRent(0), isAvailable(true) {} // Default constructor for file loading
     
     Car(int carId, const string& comp, const string& mod, int rent)
         : id(carId), company(comp), model(mod), dailyRent(rent), isAvailable(true) {}
@@ -96,7 +115,31 @@ struct Car {
              << setw(10) << dailyRent
              << setw(12) << (isAvailable ? "Available" : "Rented") << endl;
     }
+    
+    string toFileString() const {
+        return to_string(id) + "|" + company + "|" + model + "|" + 
+               to_string(dailyRent) + "|" + (isAvailable ? "1" : "0");
+    }
+    
+    static Car fromString(const string& str) {
+        Car car;
+        size_t pos1 = str.find('|');
+        size_t pos2 = str.find('|', pos1 + 1);
+        size_t pos3 = str.find('|', pos2 + 1);
+        size_t pos4 = str.find('|', pos3 + 1);
+        
+        if (pos1 != string::npos && pos2 != string::npos && pos3 != string::npos && pos4 != string::npos) {
+            car.id = stoi(str.substr(0, pos1));
+            car.company = str.substr(pos1 + 1, pos2 - pos1 - 1);
+            car.model = str.substr(pos2 + 1, pos3 - pos2 - 1);
+            car.dailyRent = stoi(str.substr(pos3 + 1, pos4 - pos3 - 1));
+            car.isAvailable = (str.substr(pos4 + 1) == "1");
+        }
+        return car;
+    }
 };
+
+// ==================== Rental Structure ====================
 
 struct Rental {
     int id;
@@ -106,6 +149,8 @@ struct Rental {
     Date returnDate;
     int totalAmount;
     bool isActive;
+    
+    Rental() : id(-1), carId(-1), totalAmount(0), isActive(false) {} // Default constructor
     
     Rental(int rentId, int cId, const string& cust, const Date& rDate, const Date& retDate, int amount)
         : id(rentId), carId(cId), customerName(cust), rentDate(rDate), 
@@ -126,7 +171,38 @@ struct Rental {
         int daysLate = actualReturn.differenceInDays(returnDate);
         return daysLate * dailyRate * 1.5; // 50% late fee
     }
+    
+    string toFileString() const {
+        return to_string(id) + "|" + to_string(carId) + "|" + customerName + "|" +
+               rentDate.toFileString() + "|" + returnDate.toFileString() + "|" +
+               to_string(totalAmount) + "|" + (isActive ? "1" : "0");
+    }
+    
+    static Rental fromString(const string& str) {
+        Rental rental;
+        vector<string> parts;
+        stringstream ss(str);
+        string part;
+        
+        // Split by pipe
+        while (getline(ss, part, '|')) {
+            parts.push_back(part);
+        }
+        
+        if (parts.size() >= 7) {
+            rental.id = stoi(parts[0]);
+            rental.carId = stoi(parts[1]);
+            rental.customerName = parts[2];
+            rental.rentDate = Date::fromString(parts[3]);
+            rental.returnDate = Date::fromString(parts[4]);
+            rental.totalAmount = stoi(parts[5]);
+            rental.isActive = (parts[6] == "1");
+        }
+        return rental;
+    }
 };
+
+// ==================== Car Rental System Class ====================
 
 class CarRentalSystem {
 private:
@@ -134,6 +210,10 @@ private:
     vector<Rental> rentals;
     int nextCarId;
     int nextRentalId;
+    
+    const string CARS_FILE = "cars_data.txt";
+    const string RENTALS_FILE = "rentals_data.txt";
+    const string ID_FILE = "id_counter.txt";
     
     void displayHeader(const string& title) {
         cout << "\n" << string(60, '=') << endl;
@@ -185,13 +265,128 @@ private:
             }
         }
     }
+    
+    // ========== FILE HANDLING METHODS ==========
+    
+    void saveCarsToFile() {
+        ofstream file(CARS_FILE);
+        if (!file.is_open()) {
+            cout << "Warning: Could not save cars data to file." << endl;
+            return;
+        }
+        
+        for (const auto& car : cars) {
+            file << car.toFileString() << endl;
+        }
+        file.close();
+    }
+    
+    void loadCarsFromFile() {
+        ifstream file(CARS_FILE);
+        if (!file.is_open()) {
+            cout << "No existing cars data found. Starting fresh." << endl;
+            return;
+        }
+        
+        cars.clear();
+        string line;
+        while (getline(file, line)) {
+            if (!line.empty()) {
+                Car car = Car::fromString(line);
+                cars.push_back(car);
+                if (car.id >= nextCarId) {
+                    nextCarId = car.id + 1;
+                }
+            }
+        }
+        file.close();
+        cout << "Loaded " << cars.size() << " cars from file." << endl;
+    }
+    
+    void saveRentalsToFile() {
+        ofstream file(RENTALS_FILE);
+        if (!file.is_open()) {
+            cout << "Warning: Could not save rentals data to file." << endl;
+            return;
+        }
+        
+        for (const auto& rental : rentals) {
+            file << rental.toFileString() << endl;
+        }
+        file.close();
+    }
+    
+    void loadRentalsFromFile() {
+        ifstream file(RENTALS_FILE);
+        if (!file.is_open()) {
+            cout << "No existing rentals data found. Starting fresh." << endl;
+            return;
+        }
+        
+        rentals.clear();
+        string line;
+        while (getline(file, line)) {
+            if (!line.empty()) {
+                Rental rental = Rental::fromString(line);
+                rentals.push_back(rental);
+                if (rental.id >= nextRentalId) {
+                    nextRentalId = rental.id + 1;
+                }
+            }
+        }
+        file.close();
+        cout << "Loaded " << rentals.size() << " rentals from file." << endl;
+    }
+    
+    void saveIdCounters() {
+        ofstream file(ID_FILE);
+        if (!file.is_open()) {
+            cout << "Warning: Could not save ID counters to file." << endl;
+            return;
+        }
+        
+        file << nextCarId << endl;
+        file << nextRentalId << endl;
+        file.close();
+    }
+    
+    void loadIdCounters() {
+        ifstream file(ID_FILE);
+        if (!file.is_open()) {
+            cout << "No existing ID counters found. Starting fresh." << endl;
+            return;
+        }
+        
+        file >> nextCarId;
+        file >> nextRentalId;
+        file.close();
+    }
+    
+    void saveAllData() {
+        saveCarsToFile();
+        saveRentalsToFile();
+        saveIdCounters();
+        cout << "All data saved successfully." << endl;
+    }
+    
+    void loadAllData() {
+        loadIdCounters();
+        loadCarsFromFile();
+        loadRentalsFromFile();
+        updateCarAvailability(); // Update status based on current date
+        saveAllData(); // Save updated status back to file
+    }
 
 public:
     CarRentalSystem() : nextCarId(1), nextRentalId(1) {
-        // No sample cars - system starts empty
-        // User must add cars through the menu
+        loadAllData(); // Load data from files on startup
     }
-
+    
+    ~CarRentalSystem() {
+        saveAllData(); // Save data to files on exit
+    }
+    
+    // ========== Feature 1: Add Car ==========
     void addCar() {
         displayHeader("ADD NEW CAR");
         
@@ -218,9 +413,11 @@ public:
         }
         
         cars.push_back(Car(nextCarId++, company, model, dailyRent));
+        saveCarsToFile(); // Save after adding
         cout << "\nCar added successfully with ID: " << (nextCarId - 1) << endl;
     }
     
+    // ========== Feature 2: Show Available Cars ==========
     void showAvailableCars() {
         updateCarAvailability();
         displayHeader("AVAILABLE CARS");
@@ -247,6 +444,7 @@ public:
         }
     }
     
+    // ========== Feature 3: Rent Car ==========
     void rentCar() {
         updateCarAvailability();
         displayHeader("RENT A CAR");
@@ -358,6 +556,10 @@ public:
             // Update car availability
             car->isAvailable = false;
             
+            // Save both files after rental
+            saveCarsToFile();
+            saveRentalsToFile();
+            
             cout << "\nCar rented successfully!" << endl;
             cout << "Rental ID: " << (nextRentalId - 1) << endl;
             cout << "Keep this ID for returning the car." << endl;
@@ -366,6 +568,7 @@ public:
         }
     }
     
+    //  Feature 4: Show Rented Cars 
     void showRentedCars() {
         updateCarAvailability();
         displayHeader("CURRENTLY RENTED CARS");
@@ -401,6 +604,7 @@ public:
         }
     }
     
+    // ========== Feature 5: Show Rental History ==========
     void showRentalHistory() {
         updateCarAvailability();
         displayHeader("RENTAL HISTORY");
@@ -428,6 +632,7 @@ public:
         }
     }
     
+    // ========== Feature 6: Return Car ==========
     void returnCar() {
         updateCarAvailability();
         displayHeader("RETURN A CAR");
@@ -523,6 +728,10 @@ public:
         rental->isActive = false;
         car->isAvailable = true;
         
+        // Save data after return
+        saveCarsToFile();
+        saveRentalsToFile();
+        
         cout << "\nCar returned successfully!" << endl;
         cout << "Final amount: " << rental->totalAmount << endl;
         
@@ -531,11 +740,27 @@ public:
         }
     }
     
+    // ========== Feature 7: Backup Data ==========
+    void backupData() {
+        displayHeader("BACKUP DATA");
+        saveAllData();
+        cout << "All data has been backed up to files." << endl;
+        cout << "Files created: " << endl;
+        cout << "1. " << CARS_FILE << " (Cars data)" << endl;
+        cout << "2. " << RENTALS_FILE << " (Rentals data)" << endl;
+        cout << "3. " << ID_FILE << " (ID counters)" << endl;
+    }
+    
+    // ========== Feature 8: Exit ==========
     void exitSystem() {
         displayHeader("THANK YOU");
-        cout << "Goodbye! Have a great day!" << endl <<"Contributors: Pukar Dhital & Pankaj Dahal"<< endl;
+        saveAllData();
+        cout << "All data saved to files." << endl;
+        cout << "Goodbye! Have a great day!" << endl;
     }
 };
+
+// ==================== Main Function ====================
 
 void displayMainMenu() {
     cout << "\n" << string(50, '=') << endl;
@@ -547,18 +772,22 @@ void displayMainMenu() {
     cout << "4. View Rented Cars" << endl;
     cout << "5. View Rental History" << endl;
     cout << "6. Return a Car" << endl;
-    cout << "7. Exit" << endl;
+    cout << "7. Backup Data" << endl;
+    cout << "8. Exit" << endl;
     cout << string(50, '-') << endl;
-    cout << "Enter your choice (1-7): ";
+    cout << "Enter your choice (1-8): ";
 }
 
 int main() {
     CarRentalSystem system;
-    int choice = 0;
+    int choice;
     
     cout << "\n" << string(60, '*') << endl;
     cout << "      WELCOME TO CAR RENTAL MANAGEMENT SYSTEM" << endl;
     cout << string(60, '*') << endl;
+    
+    cout << "\nNote: Data is automatically loaded from files on startup." << endl;
+    cout << "      Data is automatically saved to files on exit." << endl;
     
     do {
         displayMainMenu();
@@ -592,19 +821,16 @@ int main() {
                 system.returnCar();
                 break;
             case 7:
+                system.backupData();
+                break;
+            case 8:
                 system.exitSystem();
                 break;
             default:
-                if(choice == 0){
-                    continue;
-                }else{
-                    cout << "Invalid choice! Please enter 1-7." << endl;
-                }
-
-                
+                cout << "Invalid choice! Please enter 1-8." << endl;
         }
         
-    } while (choice != 7);
+    } while (choice != 8);
     
     return 0;
 }
